@@ -304,4 +304,20 @@
     <string name="FeedShownChannels">Shown in feed</string>
     <string name="FeedUnreadCounter">Unread Post Counter</string>
     <string name="HideFeedTab">Hide Feed Tab</string>
+    <string name="DialogDiagnosticsTitle">Chat list diagnostics</string>
+    <string name="DialogDiagnosticsRecording">Recording</string>
+    <string name="DialogDiagnosticsPaused">Paused</string>
+    <string name="DialogDiagnosticsPause">Pause recording</string>
+    <string name="DialogDiagnosticsResume">Resume recording</string>
+    <string name="DialogDiagnosticsSnapshot">Capture current state</string>
+    <string name="DialogDiagnosticsProbe">Compare server chat list (read only)</string>
+    <string name="DialogDiagnosticsExport">Export diagnostic report</string>
+    <string name="DialogDiagnosticsSnapshotDone">Current state recorded.</string>
+    <string name="DialogDiagnosticsProbeStarted">Checking the server chat list. You can keep using the app.</string>
+    <string name="DialogDiagnosticsProbeDone">Comparison complete. You can export the report.</string>
+    <string name="DialogDiagnosticsProbeIncomplete">Comparison incomplete or already running. Export the report for details.</string>
+    <string name="DialogDiagnosticsExportDone">Diagnostic report saved.</string>
+    <string name="DialogDiagnosticsFailed">Could not save diagnostics. Check available storage and try again.</string>
+    <string name="DialogDiagnosticsFull">Recording limit reached. Export the existing report.</string>
+    <string name="DialogDiagnosticsPausedHint">Resume recording before capturing a new state.</string>
 </resources>

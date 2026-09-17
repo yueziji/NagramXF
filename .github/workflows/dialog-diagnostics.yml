@@ -1,0 +1,88 @@
+name: Dialog diagnostics APK
+
+on:
+  push:
+    branches:
+      - 'codex/dialog-diagnostics-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dialog-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NATIVE_TARGET: arm64-v8a
+      COMMIT_ID: ${{ github.sha }}
+      CMAKE_BUILD_PARALLEL_LEVEL: '2'
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          clean: false
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;36.0.0 platforms;android-36 ndk;27.2.12479018 cmake;3.31.6'
+      - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: dialog-diagnostics-arm64
+          max-size: 2G
+      - name: Retain the diagnostic package signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: dialog-diagnostics-debug-signing-v1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+      - name: Prepare build dependencies
+        run: pip install Cython==3.0.11
+      - name: Test and build the independent diagnostic package
+        run: >-
+          bash ./gradlew
+          :TMessagesProj:testNormalDiagnosticUnitTest
+          --tests 'org.telegram.messenger.diagnostics.DialogDiagnostic*Test'
+          :TMessagesProj:assembleNormalDiagnostic
+          --no-daemon --max-workers=2
+          '-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8'
+      - name: Verify package and launcher label
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(TMessagesProj/build/outputs/apk/normal/diagnostic/*.apk)
+          test "${#apks[@]}" -eq 1
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "${apks[0]}" | awk '/^package:|^application-label:|^native-code:/'
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "${apks[0]}" | awk '/^package:/ { if ($0 !~ /fork.risin42.nagramx.diagnostics/) exit 1; found=1 } END { if (!found) exit 1 }'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "${apks[0]}"
+      - name: Upload APK and self-diagnosis guide
+        uses: actions/upload-artifact@v4
+        with:
+          name: nagram-dialog-diagnostics-arm64
+          path: |
+            TMessagesProj/build/outputs/apk/normal/diagnostic/*.apk
+            docs/dialog-diagnostics.zh-CN.md
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dialog-diagnostics-test-results
+          path: TMessagesProj/build/test-results/testNormalDiagnosticUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14

@@ -71,6 +71,7 @@ public class GooglePushListenerServiceProvider implements PushListenerController
 
     @Override
     public boolean hasServices() {
+        if (BuildConfig.DIALOG_DIAGNOSTICS) return false;
         if (hasServices == null) {
             try {
                 int resultCode = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(ApplicationLoader.applicationContext);

@@ -4802,6 +4802,7 @@ public class MessagesStorage extends BaseController {
                 cursor = null;
                 String ids = "(" + TextUtils.join(",", dids) + ")";
 
+                DialogDiagnostics.beforeDatabaseReset(currentAccount, dids);
                 database.beginTransaction();
                 database.executeFast("DELETE FROM chat_pinned_count WHERE uid IN " + ids).stepThis().dispose();
                 database.executeFast("DELETE FROM chat_pinned_v2 WHERE uid IN " + ids).stepThis().dispose();
@@ -17909,6 +17910,7 @@ public class MessagesStorage extends BaseController {
             putChatsInternal(dialogs.chats);
 
             database.commitTransaction();
+            DialogDiagnostics.stored(currentAccount, check, dialogs.dialogs, database);
             resetAllUnreadCounters(false);
         } catch (Exception e) {
             checkSQLException(e);

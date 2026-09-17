@@ -183,6 +183,7 @@ android {
         buildConfigField 'long', 'BUILD_TIMESTAMP', buildTimestamp + 'L'
         buildConfigField 'boolean', 'DEBUG_VERSION', 'false'
         buildConfigField 'boolean', 'DEBUG_PRIVATE_VERSION', 'false'
+        buildConfigField 'boolean', 'DIALOG_DIAGNOSTICS', 'false'
 
         externalNativeBuild {
             cmake {
@@ -257,6 +258,17 @@ android {
             matchingFallbacks = ['release', 'staging', 'debug']
             signingConfig = signingConfigs.release
         }
+
+        diagnostic {
+            initWith staging
+            applicationIdSuffix '.diagnostics'
+            versionNameSuffix '-dialogs'
+            signingConfig = signingConfigs.debug
+            minifyEnabled = false
+            shrinkResources = false
+            buildConfigField 'boolean', 'DIALOG_DIAGNOSTICS', 'true'
+            matchingFallbacks = ['staging', 'release', 'debug']
+        }
     }
 
     sourceSets.main.jniLibs.srcDirs = ['./jni/']
@@ -269,6 +281,13 @@ android {
     sourceSets.plugin.assets.srcDirs += "$buildDir/generated/chaquopyBuildJson"
 
     namespace = 'org.telegram.messenger'
+}
+
+// The separate diagnostic package has no Firebase app registration. Its report stays local.
+tasks.configureEach { task ->
+    if (task.name.contains('Diagnostic') && (task.name.endsWith('GoogleServices') || task.name.contains('Crashlytics'))) {
+        task.enabled = false
+    }
 }
 
 configurations {

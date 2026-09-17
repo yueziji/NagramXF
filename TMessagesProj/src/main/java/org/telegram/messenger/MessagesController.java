@@ -11956,6 +11956,9 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void loadMessagesInternal(long dialogId, long mergeDialogId, boolean loadInfo, int count, int max_id, int offset_date, boolean fromCache, int minDate, int classGuid, int load_type, int last_message_id, int mode, long threadMessageId, int loadIndex, int first_unread, int unread_count, int last_date, boolean queryFromServer, int mentionsCount, boolean loadDialog, boolean processMessages, boolean isTopic, Timer loaderLogger, long hash) {
+        if (mode == 0 && max_id == 0 && offset_date == 0) {
+            DialogDiagnostics.historyOpen(currentAccount, dialogId, fromCache);
+        }
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("load messages in chat " + dialogId + " topic_id " + threadMessageId + " count " + count + " max_id " + max_id + " cache " + fromCache + " mindate = " + minDate + " guid " + classGuid + " load_type " + load_type + " last_message_id " + last_message_id + " mode " + mode + " index " + loadIndex + " firstUnread " + first_unread + " unread_count " + unread_count + " last_date " + last_date + " queryFromServer " + queryFromServer + " isTopic " + isTopic);
         }
@@ -12154,12 +12157,15 @@ public class MessagesController extends BaseController implements NotificationCe
             } else {
                 if (!ChatObject.isMonoForum(chat) && loadDialog && (load_type == LOAD_AROUND_MESSAGE || load_type == LOAD_FROM_UNREAD) && last_message_id == 0) {
                     TLRPC.TL_messages_getPeerDialogs req = new TLRPC.TL_messages_getPeerDialogs();
+                    DialogDiagnostics.peerLookup(currentAccount, dialogId, false, null, null);
                     TLRPC.InputPeer inputPeer = getInputPeer(dialogId);
                     TLRPC.TL_inputDialogPeer inputDialogPeer = new TLRPC.TL_inputDialogPeer();
                     inputDialogPeer.peer = inputPeer;
                     req.peers.add(inputDialogPeer);
 
                     getConnectionsManager().sendRequest(req, (response, error) -> {
+                        DialogDiagnostics.peerLookup(currentAccount, dialogId, true,
+                                response instanceof TLRPC.TL_messages_peerDialogs ? (TLRPC.TL_messages_peerDialogs) response : null, error);
                         if (response != null) {
                             TLRPC.TL_messages_peerDialogs res = (TLRPC.TL_messages_peerDialogs) response;
                             if (!res.dialogs.isEmpty()) {
@@ -12929,6 +12935,8 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void loadDialogs(final int folderId, int offset, int count, boolean fromCache, Runnable onEmptyCallback) {
+        DialogDiagnostics.loadAttempt(currentAccount, folderId, offset, count, fromCache,
+                loadingDialogs.get(folderId), resetingDialogs, dialogsEndReached.get(folderId), serverDialogsEndReached.get(folderId));
         if (loadingDialogs.get(folderId) || resetingDialogs) {
             return;
         }
@@ -13013,7 +13021,9 @@ public class MessagesController extends BaseController implements NotificationCe
                     req.offset_peer = new TLRPC.TL_inputPeerEmpty();
                 }
             }
+            long diagnosticRequest = DialogDiagnostics.listRequest(currentAccount, DialogDiagnostics.NETWORK, folderId, req);
             getConnectionsManager().sendRequest(req, (response, error) -> {
+                DialogDiagnostics.listResponse(currentAccount, DialogDiagnostics.NETWORK, folderId, diagnosticRequest, response, error);
                 if (error == null) {
                     TLRPC.messages_Dialogs dialogsRes = (TLRPC.messages_Dialogs) response;
                     processLoadedDialogs(dialogsRes, null, null, folderId, 0, count, 0, false, false, false);
@@ -13197,6 +13207,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void forceResetDialogs() {
+        DialogDiagnostics.event(currentAccount, "reset_manual");
         resetDialogs(true, getMessagesStorage().getLastSeqValue(), getMessagesStorage().getLastPtsValue(), getMessagesStorage().getLastDateValue(), getMessagesStorage().getLastQtsValue());
         getNotificationsController().deleteAllNotificationChannels();
     }
@@ -13310,6 +13321,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     private void resetDialogs(boolean query, int seq, int newPts, int date, int qts) {
         if (query) {
+            DialogDiagnostics.event(currentAccount, "reset_attempt", "resetting", resetingDialogs);
             if (resetingDialogs) {
                 return;
             }
@@ -13330,7 +13342,9 @@ public class MessagesController extends BaseController implements NotificationCe
             req2.limit = 100;
             req2.exclude_pinned = true;
             req2.offset_peer = new TLRPC.TL_inputPeerEmpty();
+            long diagnosticRequest = DialogDiagnostics.listRequest(currentAccount, DialogDiagnostics.RESET, 0, req2);
             getConnectionsManager().sendRequest(req2, (response, error) -> {
+                DialogDiagnostics.listResponse(currentAccount, DialogDiagnostics.RESET, 0, diagnosticRequest, response, error);
                 if (error == null) {
                     resetDialogsAll = (TLRPC.messages_Dialogs) response;
                     resetDialogs(false, seq, newPts, date, qts);
@@ -13768,6 +13782,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void processLoadedDialogs(final TLRPC.messages_Dialogs dialogsRes, ArrayList<TLRPC.EncryptedChat> encChats, ArrayList<TLRPC.UserFull> fullUsers, int folderId, int offset, int count, int loadType, boolean resetEnd, boolean migrate, boolean fromCache) {
         Utilities.stageQueue.postRunnable(() -> {
+            DialogDiagnostics.processing(currentAccount, folderId, loadType, migrate, dialogsRes);
             if (!firstGettingTask) {
                 getNewDeleteTask(null, null);
                 firstGettingTask = true;
@@ -13921,6 +13936,7 @@ public class MessagesController extends BaseController implements NotificationCe
                         dialogsLoadOffsetAccess);
                 getUserConfig().setTotalDialogsCount(folderId, totalDialogsLoadCount);
                 getUserConfig().saveConfig(false);
+                DialogDiagnostics.cursorDecision(currentAccount, folderId, dialogsLoadOffset, lastMessage);
             }
 
             ArrayList<TLRPC.Dialog> dialogsToReload = new ArrayList<>();
@@ -14236,6 +14252,7 @@ public class MessagesController extends BaseController implements NotificationCe
                 }
                 int totalDialogsLoadCount = getUserConfig().getTotalDialogsCount(folderId);
                 long[] dialogsLoadOffset2 = getUserConfig().getDialogLoadOffsets(folderId);
+                DialogDiagnostics.applied(currentAccount, folderId, loadType, dialogsRes.dialogs);
                 if (!fromCache && !migrate && totalDialogsLoadCount < 400 && dialogsLoadOffset2[UserConfig.i_dialogsLoadOffsetId] != -1 && dialogsLoadOffset2[UserConfig.i_dialogsLoadOffsetId] != Integer.MAX_VALUE) {
                     loadDialogs(folderId, 0, 100, false);
                 }
@@ -17382,6 +17399,7 @@ public class MessagesController extends BaseController implements NotificationCe
             if (error == null) {
                 TLRPC.updates_Difference res = (TLRPC.updates_Difference) response;
                 if (res instanceof TLRPC.TL_updates_differenceTooLong) {
+                    DialogDiagnostics.event(currentAccount, "reset_from_difference");
                     AndroidUtilities.runOnUIThread(() -> {
                         loadedFullUsers.clear();
                         loadedFullChats.clear();

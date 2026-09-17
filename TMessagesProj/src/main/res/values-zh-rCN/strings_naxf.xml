@@ -288,4 +288,20 @@
     <string name="FeedShownChannels">显示的频道</string>
     <string name="FeedUnreadCounter">未读帖子计数</string>
     <string name="HideFeedTab">隐藏信息流标签页</string>
+    <string name="DialogDiagnosticsTitle">聊天列表诊断</string>
+    <string name="DialogDiagnosticsRecording">记录中</string>
+    <string name="DialogDiagnosticsPaused">已暂停</string>
+    <string name="DialogDiagnosticsPause">暂停记录</string>
+    <string name="DialogDiagnosticsResume">继续记录</string>
+    <string name="DialogDiagnosticsSnapshot">采集当前状态</string>
+    <string name="DialogDiagnosticsProbe">对照服务器聊天列表（只读）</string>
+    <string name="DialogDiagnosticsExport">导出诊断报告</string>
+    <string name="DialogDiagnosticsSnapshotDone">已记录当前状态。</string>
+    <string name="DialogDiagnosticsProbeStarted">正在对照服务器聊天列表，可继续使用应用。</string>
+    <string name="DialogDiagnosticsProbeDone">对照完成，可以导出报告。</string>
+    <string name="DialogDiagnosticsProbeIncomplete">对照未完成或已有检查正在运行，可导出报告查看。</string>
+    <string name="DialogDiagnosticsExportDone">诊断报告已保存。</string>
+    <string name="DialogDiagnosticsFailed">保存诊断失败，请检查可用存储空间后重试。</string>
+    <string name="DialogDiagnosticsFull">记录已达上限，请导出现有报告。</string>
+    <string name="DialogDiagnosticsPausedHint">请先继续记录，再采集新状态。</string>
 </resources>

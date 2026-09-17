@@ -2,9 +2,13 @@ package tw.nekomimi.nekogram.settings;
 
 import static org.telegram.messenger.LocaleController.getString;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -12,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.BuildVars;
+import org.telegram.messenger.DialogDiagnostics;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -36,6 +41,7 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
     private int infoHeaderRow;
     private int versionRow;
     private int updatesRow;
+    private int dialogDiagnosticsRow;
     private int toggleLogsRow;
     private int sendLogsRow;
     private int clearLogsRow;
@@ -56,6 +62,7 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
         infoHeaderRow = addRow();
         versionRow = addRow();
         updatesRow = addRow();
+        dialogDiagnosticsRow = BuildConfig.DIALOG_DIAGNOSTICS ? addRow() : -1;
         toggleLogsRow = addRow();
         if (BuildVars.LOGS_ENABLED) {
             sendLogsRow = addRow();
@@ -123,6 +130,8 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
             Browser.openUrl(getParentActivity(), "https://github.com/Keeperorowner/NagramXF#readme");
         } else if (position == updatesRow) {
             showUpdatesDialog();
+        } else if (position == dialogDiagnosticsRow) {
+            showDialogDiagnostics();
         } else if (position == toggleLogsRow) {
             boolean wasLogsEnabled = BuildVars.LOGS_ENABLED;
             AndroidUtil.toggleLogs();
@@ -155,6 +164,62 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
         } else if (position == datacenterStatusRow) {
             presentFragment(new DatacenterActivity(0));
         }
+    }
+
+    private static final int EXPORT_DIALOG_DIAGNOSTICS = 7314;
+
+    private void showDialogDiagnostics() {
+        Activity activity = getParentActivity();
+        if (activity == null) return;
+        AlertDialog.Builder builder = new AlertDialog.Builder(activity, resourceProvider);
+        builder.setTitle(getString(R.string.DialogDiagnosticsTitle));
+        builder.setItems(new CharSequence[]{
+                getString(DialogDiagnostics.isEnabled() ? R.string.DialogDiagnosticsPause : R.string.DialogDiagnosticsResume),
+                getString(R.string.DialogDiagnosticsSnapshot),
+                getString(R.string.DialogDiagnosticsProbe),
+                getString(R.string.DialogDiagnosticsExport)
+        }, (dialog, which) -> {
+            if (which == 0) {
+                DialogDiagnostics.setEnabled(!DialogDiagnostics.isEnabled());
+                listAdapter.notifyItemChanged(dialogDiagnosticsRow);
+            } else if (which == 3) {
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/octet-stream");
+                intent.putExtra(Intent.EXTRA_TITLE, "nagram-dialog-diagnostics-" + System.currentTimeMillis() + ".jsonl");
+                try {
+                    startActivityForResult(intent, EXPORT_DIALOG_DIAGNOSTICS);
+                } catch (Exception ignored) {
+                    diagnosticToast(R.string.DialogDiagnosticsFailed);
+                }
+            } else if (!DialogDiagnostics.isEnabled() || DialogDiagnostics.isFull()) {
+                diagnosticToast(DialogDiagnostics.isFull() ? R.string.DialogDiagnosticsFull : R.string.DialogDiagnosticsPausedHint);
+            } else if (which == 1) {
+                DialogDiagnostics.snapshot(currentAccount, () -> diagnosticToast(R.string.DialogDiagnosticsSnapshotDone));
+            } else if (which == 2) {
+                diagnosticToast(R.string.DialogDiagnosticsProbeStarted);
+                DialogDiagnostics.probe(currentAccount, success -> diagnosticToast(success
+                        ? R.string.DialogDiagnosticsProbeDone : R.string.DialogDiagnosticsProbeIncomplete));
+            }
+        });
+        builder.setNegativeButton(getString(R.string.Close), null);
+        showDialog(builder.create());
+    }
+
+    private void diagnosticToast(int string) {
+        Activity activity = getParentActivity();
+        if (activity != null) Toast.makeText(activity, getString(string), Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode != EXPORT_DIALOG_DIAGNOSTICS || resultCode != Activity.RESULT_OK || data == null || data.getData() == null) return;
+        Activity activity = getParentActivity();
+        if (activity == null) return;
+        Uri destination = data.getData();
+        DialogDiagnostics.export(activity.getApplicationContext(), destination, currentAccount,
+                success -> diagnosticToast(success ? R.string.DialogDiagnosticsExportDone : R.string.DialogDiagnosticsFailed));
     }
 
     private void shiftRowsAfterLogsEnabled() {
@@ -270,6 +335,10 @@ public class NekoAboutActivity extends BaseNekoSettingsActivity {
                     TextCell textCell = (TextCell) holder.itemView;
                     if (position == updatesRow) {
                         textCell.setTextAndValueAndIcon(getString(R.string.CheckUpdate), getUpdateChannelDetail(), R.drawable.msg_retry, true);
+                    } else if (position == dialogDiagnosticsRow) {
+                        int status = DialogDiagnostics.isFull() ? R.string.DialogDiagnosticsFull
+                                : DialogDiagnostics.isEnabled() ? R.string.DialogDiagnosticsRecording : R.string.DialogDiagnosticsPaused;
+                        textCell.setTextAndValueAndIcon(getString(R.string.DialogDiagnosticsTitle), getString(status), R.drawable.bug, true);
                     } else if (position == toggleLogsRow) {
                         textCell.setTextAndIcon(BuildVars.LOGS_ENABLED ? getString(R.string.DebugMenuDisableLogs) : getString(R.string.DebugMenuEnableLogs), R.drawable.bug, sendLogsRow != -1);
                     } else if (position == sendLogsRow) {

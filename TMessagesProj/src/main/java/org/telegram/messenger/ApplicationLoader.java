@@ -305,7 +305,9 @@ public class ApplicationLoader extends Application {
         installPluginCrashHandler();
         registerPluginLifecycleCallbacks();
         SharedPrefsHelper.init(applicationContext);
-        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!NaConfig.INSTANCE.getDisableCrashlyticsCollection().Bool());
+        if (!BuildConfig.DIALOG_DIAGNOSTICS) {
+            FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(!NaConfig.INSTANCE.getDisableCrashlyticsCollection().Bool());
+        }
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) { //TODO improve account
             UserConfig.getInstance(a).loadConfig();
             MessagesController.getInstance(a);
@@ -409,6 +411,7 @@ public class ApplicationLoader extends Application {
         }
 
         applicationHandler = new Handler(applicationContext.getMainLooper());
+        DialogDiagnostics.start();
 
         if (NekoConfig.useOpenFreeMap.Bool()) {
             MapLibre.getInstance(applicationContext);
